@@ -78,6 +78,14 @@
         });
       })
       .then(function () {
+        // toCanvas scrive style.width e style.height inline a 1024px. Il
+        // max-width del foglio di stile limiterebbe solo la larghezza,
+        // lasciando l'altezza a 1024: il QR uscirebbe allungato in verticale.
+        // Rimuovendo le due proprietà il dimensionamento torna al CSS, che
+        // mantiene il rapporto 1:1.
+        canvas.style.removeProperty('width');
+        canvas.style.removeProperty('height');
+
         canvas.hidden = false;
         if (status) status.hidden = true;
         if (button) {
