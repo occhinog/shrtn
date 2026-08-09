@@ -1,0 +1,190 @@
+<!doctype html>
+<html lang="it">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>shrtn.link</title>
+<meta name="robots" content="noindex">
+<link rel="stylesheet" href="/assets/style.css">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🔗</text></svg>">
+</head>
+<body>
+
+<!--
+  Catch-all di GitHub Pages.
+
+  In condizioni normali questa pagina viene servita solo per slug inesistenti,
+  perché build.js pre-genera /[slug]/index.html e /[slug]/qr/index.html.
+  Resta però un fallback completo: se il sito venisse pubblicato direttamente
+  dal branch (senza build), questa pagina risolve comunque slug e QR leggendo
+  links.json lato client. In quel caso si perdono solo i meta Open Graph,
+  che richiedono HTML statico.
+-->
+
+<main class="wrap wrap--center">
+
+  <section id="view-loading">
+    <div class="spinner"></div>
+  </section>
+
+  <section id="view-redirect" hidden>
+    <div class="spinner"></div>
+    <p class="lead" style="margin-bottom:.5rem">
+      Reindirizzamento a <strong id="rd-host"></strong>…
+    </p>
+    <p class="small muted">
+      <a id="rd-link" href="#" rel="noopener">Vai subito</a>
+    </p>
+  </section>
+
+  <section id="view-qr" hidden>
+    <a class="brand" href="/">shrtn<span class="dot">.</span>link</a>
+    <h1 style="font-size:1.4rem">QR code</h1>
+    <p class="target" id="qr-target"></p>
+    <div class="qr-frame">
+      <canvas id="qr-canvas" hidden></canvas>
+      <p class="small muted" id="qr-status" style="margin:0">Generazione del QR…</p>
+    </div>
+    <div class="actions">
+      <button class="btn" id="qr-download" type="button" disabled>Download QR (PNG)</button>
+      <a class="btn btn--ghost" id="qr-open" href="#" rel="noopener">Apri il link</a>
+    </div>
+  </section>
+
+  <section id="view-404" hidden>
+    <a class="brand" href="/">shrtn<span class="dot">.</span>link</a>
+    <h1>Link non trovato</h1>
+    <p class="lead">
+      Lo short link <code id="nf-path"></code> non esiste o è stato rimosso.
+    </p>
+    <div class="actions">
+      <a class="btn" href="/">Torna alla home</a>
+    </div>
+  </section>
+
+</main>
+
+<footer>
+  shrtn.link · nessun tracking
+</footer>
+
+<script src="/assets/qr.js" defer></script>
+<script>
+(function () {
+  'use strict';
+
+  var REDIRECT_DELAY_MS = 250;      // deve restare allineato a build.js
+  var VIEWS = ['view-loading', 'view-redirect', 'view-qr', 'view-404'];
+
+  function show(id) {
+    for (var i = 0; i < VIEWS.length; i++) {
+      document.getElementById(VIEWS[i]).hidden = (VIEWS[i] !== id);
+    }
+  }
+
+  function notFound(path) {
+    document.getElementById('nf-path').textContent = '/' + (path || '');
+    document.title = 'Link non trovato · shrtn.link';
+    show('view-404');
+  }
+
+  // Un percent-encoding malformato (/%E0%A4) farebbe eccezione: in quel caso
+  // lo slug non può esistere comunque, quindi si ripiega sul path grezzo.
+  var pathname = location.pathname;
+  try { pathname = decodeURIComponent(pathname); } catch (e) { /* path non decodificabile */ }
+
+  var rawPath = pathname.replace(/^\/+/, '').replace(/\/+$/, '');
+  var parts = rawPath ? rawPath.split('/') : [];
+  var slug = parts[0] || '';
+  var wantQr = parts.length === 2 && parts[1].toLowerCase() === 'qr';
+
+  // Percorsi accettati: /slug e /slug/qr. Qualsiasi altra forma è un 404.
+  if (!slug || parts.length > 2 || (parts.length === 2 && !wantQr)) {
+    notFound(rawPath);
+    return;
+  }
+
+  fetch('/links.json', { cache: 'no-cache' })
+    .then(function (r) {
+      if (!r.ok) throw new Error('links.json non raggiungibile');
+      return r.json();
+    })
+    .then(function (links) {
+      var entry = Object.prototype.hasOwnProperty.call(links, slug) ? links[slug] : null;
+
+      // Tolleranza sulle maiuscole: chi digita a mano sbaglia spesso il case.
+      if (!entry) {
+        var lower = slug.toLowerCase();
+        for (var k in links) {
+          if (Object.prototype.hasOwnProperty.call(links, k) && k.toLowerCase() === lower) {
+            entry = links[k];
+            slug = k;
+            break;
+          }
+        }
+      }
+
+      if (!entry || !entry.url) {
+        notFound(rawPath);
+        return;
+      }
+
+      if (wantQr) {
+        renderQr(slug, entry);
+      } else {
+        redirect(entry.url);
+      }
+    })
+    .catch(function () {
+      notFound(rawPath);
+    });
+
+  function redirect(url) {
+    var host;
+    try { host = new URL(url).hostname.replace(/^www\./, ''); } catch (e) { host = url; }
+
+    document.getElementById('rd-host').textContent = host;
+    var direct = document.getElementById('rd-link');
+    direct.href = url;
+    document.title = 'Reindirizzamento…';
+    show('view-redirect');
+
+    // La fetch ha già consumato tempo: non aggiungiamo un'attesa piena.
+    var elapsed = (window.performance && performance.now) ? performance.now() : REDIRECT_DELAY_MS;
+    var wait = Math.max(0, REDIRECT_DELAY_MS - elapsed);
+
+    setTimeout(function () { location.replace(url); }, wait);
+  }
+
+  function renderQr(slug, entry) {
+    var target = location.origin + '/' + slug;
+    document.getElementById('qr-target').textContent = target;
+    document.getElementById('qr-open').href = entry.url;
+    document.title = 'QR · ' + target;
+    show('view-qr');
+
+    function start() {
+      if (!window.shrtnQr) {
+        document.getElementById('qr-status').textContent =
+          'Impossibile caricare il generatore di QR.';
+        return;
+      }
+      window.shrtnQr.render({
+        canvas: document.getElementById('qr-canvas'),
+        text: target,
+        filename: 'shrtn-' + slug + '-qr.png',
+        status: document.getElementById('qr-status'),
+        button: document.getElementById('qr-download')
+      });
+    }
+
+    // qr.js è caricato con defer: potrebbe non essere ancora pronto.
+    if (window.shrtnQr) start();
+    else if (document.readyState === 'loading') window.addEventListener('DOMContentLoaded', start);
+    else start();
+  }
+})();
+</script>
+
+</body>
+</html>

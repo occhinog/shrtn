@@ -1,0 +1,158 @@
+name: Link health
+
+# Controllo settimanale delle destinazioni. Apre una issue per ogni link rotto
+# e chiude automaticamente quelle risolte.
+on:
+  schedule:
+    # Lunedì 06:17 UTC. Il minuto non tondo riduce la coda sugli scheduler GitHub,
+    # che ritardano i cron all'ora esatta.
+    - cron: '17 6 * * 1'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  issues: write
+
+concurrency:
+  group: link-health
+  cancel-in-progress: false
+
+jobs:
+  check:
+    name: Controlla le destinazioni
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '22'
+
+      - name: Controlla i link
+        run: node check-links.js --report health-report.json
+
+      - name: Apri e chiudi le issue
+        uses: actions/github-script@v9
+        with:
+          script: |
+            const fs = require('fs');
+            const report = JSON.parse(fs.readFileSync('health-report.json', 'utf8'));
+
+            const LABEL = 'link-health';
+            const MARKER = (slug) => `<!-- shrtn-link-health:${slug} -->`;
+            const MARKER_RE = /<!-- shrtn-link-health:(.+?) -->/;
+
+            // --- 1. la label deve esistere prima di essere applicata ---
+            try {
+              await github.rest.issues.getLabel({ ...context.repo, name: LABEL });
+            } catch (error) {
+              if (error.status !== 404) throw error;
+              await github.rest.issues.createLabel({
+                ...context.repo,
+                name: LABEL,
+                color: 'd73a4a',
+                description: 'Destinazione di uno short link non raggiungibile'
+              });
+            }
+
+            // --- 2. issue già aperte, indicizzate per slug ---
+            // Il marker nel body è più affidabile del titolo: sopravvive alle
+            // rinominazioni manuali della issue.
+            const openIssues = await github.paginate(github.rest.issues.listForRepo, {
+              ...context.repo,
+              state: 'open',
+              labels: LABEL,
+              per_page: 100
+            });
+
+            const issueBySlug = new Map();
+            for (const issue of openIssues) {
+              const match = MARKER_RE.exec(issue.body || '');
+              if (match) issueBySlug.set(match[1], issue);
+            }
+
+            const runUrl = `${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`;
+            const created = [];
+            const alreadyOpen = [];
+            const closed = [];
+
+            // --- 3. apri le issue mancanti ---
+            for (const item of report.broken) {
+              if (issueBySlug.has(item.slug)) {
+                alreadyOpen.push(item.slug);
+                continue;
+              }
+
+              const outcome = item.error ? `errore di rete — \`${item.error}\`` : `HTTP \`${item.status}\``;
+              const body = [
+                MARKER(item.slug),
+                `Il controllo automatico non è riuscito a raggiungere la destinazione dello short link \`/${item.slug}\`.`,
+                '',
+                '| campo | valore |',
+                '| --- | --- |',
+                `| slug | \`${item.slug}\` |`,
+                `| destinazione | ${item.url} |`,
+                `| esito | ${outcome} |`,
+                `| metodo | \`${item.method}\` |`,
+                `| data controllo | ${report.checkedAt} |`,
+                '',
+                `Short link pubblico: https://shrtn.link/${item.slug}`,
+                '',
+                'Per risolvere, aggiorna o rimuovi la voce in `links.json`.',
+                'Questa issue si chiude da sola al primo controllo andato a buon fine.',
+                '',
+                `_Aperta automaticamente da [${context.workflow}](${runUrl})._`
+              ].join('\n');
+
+              const issue = await github.rest.issues.create({
+                ...context.repo,
+                title: `Link non raggiungibile: ${item.slug}`,
+                labels: [LABEL],
+                body
+              });
+              created.push(`#${issue.data.number} ${item.slug}`);
+            }
+
+            // --- 4. chiudi le issue non più pertinenti ---
+            const healthy = new Set(report.ok.map((r) => r.slug));
+            const stillPresent = new Set(
+              [...report.ok, ...report.inconclusive, ...report.broken].map((r) => r.slug)
+            );
+
+            for (const [slug, issue] of issueBySlug) {
+              const recovered = healthy.has(slug);
+              const removed = !stillPresent.has(slug);
+              if (!recovered && !removed) continue;
+
+              await github.rest.issues.createComment({
+                ...context.repo,
+                issue_number: issue.number,
+                body: recovered
+                  ? `Destinazione di nuovo raggiungibile al controllo del ${report.checkedAt}. Chiudo automaticamente.`
+                  : `Lo slug \`${slug}\` non è più presente in \`links.json\`. Chiudo automaticamente.`
+              });
+
+              await github.rest.issues.update({
+                ...context.repo,
+                issue_number: issue.number,
+                state: 'closed',
+                state_reason: recovered ? 'completed' : 'not_planned'
+              });
+              closed.push(`#${issue.number} ${slug}`);
+            }
+
+            // --- 5. riepilogo nella pagina del run ---
+            const lines = [
+              '## Link health',
+              '',
+              `Controllati **${report.total}** link il ${report.checkedAt}.`,
+              '',
+              `- ok: ${report.ok.length}`,
+              `- non conclusivi (403/429/anti-bot): ${report.inconclusive.length}`,
+              `- rotti: ${report.broken.length}`,
+              '',
+              `Issue aperte ora: ${created.length ? created.join(', ') : 'nessuna'}`,
+              `Issue già aperte in precedenza: ${alreadyOpen.length ? alreadyOpen.join(', ') : 'nessuna'}`,
+              `Issue chiuse: ${closed.length ? closed.join(', ') : 'nessuna'}`
+            ];
+            await core.summary.addRaw(lines.join('\n')).write();

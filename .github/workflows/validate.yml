@@ -1,0 +1,40 @@
+name: Validate links
+
+# Sui push filtriamo per percorso: non ha senso rivalidare a ogni modifica del README.
+# Sulle pull request invece giriamo sempre, senza filtro: un required status check
+# che non parte lascia la PR bloccata in "Expected — Waiting for status to be reported".
+on:
+  push:
+    paths:
+      - 'links.json'
+      - 'validate-links.js'
+      - 'build.js'
+      - '.github/workflows/validate.yml'
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: validate-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  validate:
+    name: links.json
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '22'
+
+      - name: Valida links.json
+        run: node validate-links.js
+
+      # La build è il vero test di integrazione: verifica che ogni slug produca
+      # pagine generabili prima che la modifica finisca in produzione.
+      - name: Build di prova
+        run: node build.js --out dist

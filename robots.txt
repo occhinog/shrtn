@@ -1,0 +1,5 @@
+User-agent: *
+Allow: /
+
+# Le pagine QR non hanno valore per l'indicizzazione.
+Disallow: /*/qr/

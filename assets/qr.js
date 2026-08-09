@@ -1,0 +1,92 @@
+/* shrtn.link — generazione QR lato client.
+   Usato sia dalle pagine /[slug]/qr/ generate da build.js, sia da 404.html
+   quando lavora in modalità fallback (Pages servito direttamente dal branch,
+   senza pagine pre-generate).
+   La libreria è caricata dal CDN solo quando serve davvero. */
+
+(function (global) {
+  'use strict';
+
+  var LIB_URL = 'https://cdn.jsdelivr.net/npm/qrcode@1.5.4/build/qrcode.min.js';
+  var libPromise = null;
+
+  function loadLib() {
+    if (global.QRCode && typeof global.QRCode.toCanvas === 'function') {
+      return Promise.resolve(global.QRCode);
+    }
+    if (libPromise) return libPromise;
+
+    libPromise = new Promise(function (resolve, reject) {
+      var s = document.createElement('script');
+      s.src = LIB_URL;
+      s.async = true;
+      s.crossOrigin = 'anonymous';
+      s.onload = function () {
+        if (global.QRCode && typeof global.QRCode.toCanvas === 'function') resolve(global.QRCode);
+        else reject(new Error('Libreria QR caricata ma non utilizzabile.'));
+      };
+      s.onerror = function () {
+        reject(new Error('Impossibile caricare la libreria QR dal CDN. Verifica la connessione.'));
+      };
+      document.head.appendChild(s);
+    });
+    return libPromise;
+  }
+
+  function downloadCanvas(canvas, filename) {
+    var a = document.createElement('a');
+    a.href = canvas.toDataURL('image/png');
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+  }
+
+  /**
+   * @param {Object} opts
+   * @param {HTMLCanvasElement} opts.canvas  canvas di destinazione
+   * @param {string} opts.text               contenuto codificato nel QR
+   * @param {string} [opts.filename]         nome del PNG scaricato
+   * @param {HTMLElement} [opts.status]      elemento per messaggi di errore
+   * @param {HTMLButtonElement} [opts.button] bottone "Download QR"
+   */
+  function render(opts) {
+    var canvas = opts.canvas;
+    var status = opts.status;
+    var button = opts.button;
+    var filename = opts.filename || 'qr.png';
+
+    return loadLib()
+      .then(function (QRCode) {
+        return new Promise(function (resolve, reject) {
+          QRCode.toCanvas(canvas, opts.text, {
+            width: 1024,           // risoluzione alta: utilizzabile in stampa
+            margin: 2,
+            errorCorrectionLevel: 'M',
+            color: { dark: '#000000ff', light: '#ffffffff' }
+          }, function (err) {
+            if (err) reject(err); else resolve();
+          });
+        });
+      })
+      .then(function () {
+        canvas.hidden = false;
+        if (status) status.hidden = true;
+        if (button) {
+          button.disabled = false;
+          button.addEventListener('click', function () {
+            downloadCanvas(canvas, filename);
+          });
+        }
+      })
+      .catch(function (err) {
+        if (status) {
+          status.hidden = false;
+          status.textContent = err && err.message ? err.message : 'Errore nella generazione del QR.';
+        }
+        if (button) button.disabled = true;
+      });
+  }
+
+  global.shrtnQr = { render: render, load: loadLib };
+})(window);

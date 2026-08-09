@@ -1,0 +1,68 @@
+<!doctype html>
+<html lang="it">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>shrtn.link — URL shortener statico</title>
+<meta name="description" content="shrtn.link è un accorciatore di URL statico: nessun backend, nessun tracking. I link sono definiti in un file JSON versionato su Git.">
+<link rel="canonical" href="https://shrtn.link/">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="shrtn.link">
+<meta property="og:url" content="https://shrtn.link/">
+<meta property="og:title" content="shrtn.link — URL shortener statico">
+<meta property="og:description" content="Accorciatore di URL statico: nessun backend, nessun tracking. I link sono definiti in un file JSON versionato su Git.">
+<meta name="twitter:card" content="summary">
+<link rel="stylesheet" href="/assets/style.css">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🔗</text></svg>">
+</head>
+<body>
+
+<main class="wrap">
+
+  <a class="brand" href="/">shrtn<span class="dot">.</span>link</a>
+
+  <h1>Link brevi, senza backend.</h1>
+
+  <p class="lead">
+    Un accorciatore di URL completamente statico. Ogni link è una riga in un file
+    JSON versionato su Git: nessun database, nessun pannello di controllo,
+    nessun tracking.
+  </p>
+
+  <div class="card">
+    <p class="small muted" style="margin-bottom:.5rem">Come funziona</p>
+    <pre><code>https://shrtn.link/<b>instagram</b>
+   ↓
+https://instagram.com/smartai_it</code></pre>
+    <p class="small muted" style="margin-bottom:0">
+      Aggiungi <code>/qr</code> a qualsiasi link per ottenere il QR code scaricabile:
+      <code>shrtn.link/instagram/qr</code>
+    </p>
+  </div>
+
+  <h2>Caratteristiche</h2>
+  <ul class="plain">
+    <li>Nessun tracciamento, nessun cookie, nessuna analitica.</li>
+    <li>Anteprime Open Graph corrette su LinkedIn, WhatsApp e Instagram.</li>
+    <li>QR code generato al volo per ogni link, scaricabile in PNG.</li>
+    <li>Controllo automatico settimanale delle destinazioni non più raggiungibili.</li>
+  </ul>
+
+  <h2>Aggiungere un link</h2>
+  <p>
+    I link vivono in <code>links.json</code> nel repository. Una pull request,
+    la validazione automatica passa, il link è online.
+  </p>
+  <p>
+    <a href="https://github.com/occhinog/shrtn" rel="noopener">Repository e istruzioni su GitHub →</a>
+  </p>
+
+</main>
+
+<footer>
+  shrtn.link · nessun tracking ·
+  <a href="https://github.com/occhinog/shrtn" rel="noopener">codice sorgente</a>
+</footer>
+
+</body>
+</html>

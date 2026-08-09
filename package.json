@@ -1,0 +1,17 @@
+{
+  "name": "shrtn-link",
+  "version": "1.0.0",
+  "private": true,
+  "description": "URL shortener statico per shrtn.link, ospitato su GitHub Pages",
+  "license": "MIT",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "validate": "node validate-links.js",
+    "build": "node build.js",
+    "import": "node import-csv.js",
+    "health": "node check-links.js",
+    "preview": "npm run build && npx --yes serve dist"
+  }
+}
