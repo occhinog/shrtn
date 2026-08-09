@@ -2,12 +2,21 @@
    Usato sia dalle pagine /[slug]/qr/ generate da build.js, sia da 404.html
    quando lavora in modalità fallback (Pages servito direttamente dal branch,
    senza pagine pre-generate).
-   La libreria è caricata dal CDN solo quando serve davvero. */
+
+   La libreria è ospitata qui, non su un CDN: i QR servono per materiali
+   stampati e vengono spesso rigenerati a un evento, dove la rete è inaffidabile
+   e un CDN irraggiungibile significherebbe pagina rotta. Self-hosting elimina
+   anche l'unica dipendenza runtime di terze parti del sito.
+
+   assets/qrcode.min.js è qrcode@1.5.1 (build/qrcode.min.js), l'ultima versione
+   che pubblica un bundle browser: dalla 1.5.2 il pacchetto npm contiene solo
+   moduli CommonJS. Espone il globale QRCode con toCanvas/toDataURL.
+   Caricata su richiesta, così la homepage non la scarica mai. */
 
 (function (global) {
   'use strict';
 
-  var LIB_URL = 'https://cdn.jsdelivr.net/npm/qrcode@1.5.4/build/qrcode.min.js';
+  var LIB_URL = '/assets/qrcode.min.js';
   var libPromise = null;
 
   function loadLib() {
@@ -20,13 +29,12 @@
       var s = document.createElement('script');
       s.src = LIB_URL;
       s.async = true;
-      s.crossOrigin = 'anonymous';
       s.onload = function () {
         if (global.QRCode && typeof global.QRCode.toCanvas === 'function') resolve(global.QRCode);
         else reject(new Error('Libreria QR caricata ma non utilizzabile.'));
       };
       s.onerror = function () {
-        reject(new Error('Impossibile caricare la libreria QR dal CDN. Verifica la connessione.'));
+        reject(new Error('Impossibile caricare la libreria QR. Ricarica la pagina.'));
       };
       document.head.appendChild(s);
     });

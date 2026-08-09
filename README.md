@@ -153,9 +153,15 @@ scoprire il problema in produzione.
 
 Ogni link ha la sua pagina QR: `https://shrtn.link/[slug]/qr`.
 
-Il codice viene generato nel browser (libreria `qrcode` da jsDelivr), a 1024 px,
-ed è scaricabile in PNG con il bottone **Download QR** — risoluzione adeguata
-per locandine e materiali stampati.
+Il codice viene generato nel browser a 1024 px ed è scaricabile in PNG con il
+bottone **Download QR** — risoluzione adeguata per locandine e materiali
+stampati.
+
+La libreria (`qrcode@1.5.1`) è ospitata in `assets/qrcode.min.js`, non presa da
+un CDN: la pagina QR serve tipicamente sul posto a un evento, dove la rete è
+inaffidabile. Per aggiornarla, sostituisci il file — tieni presente che dalla
+versione 1.5.2 il pacchetto npm non pubblica più un bundle browser, quindi la
+1.5.1 è l'ultima utilizzabile così com'è.
 
 Il QR punta allo short link, non alla destinazione finale: se domani il link di
 un evento cambia, basta aggiornare `links.json` e i volantini già stampati
@@ -342,7 +348,8 @@ dal contenuto del branch.
 ├── robots.txt
 ├── assets/
 │   ├── style.css           stile condiviso
-│   └── qr.js               generazione QR lato client
+│   ├── qr.js               generazione QR lato client
+│   └── qrcode.min.js       qrcode@1.5.1, self-hosted
 ├── build.js                genera dist/ con una pagina per slug
 ├── validate-links.js       validazione di links.json (anche modulo condiviso)
 ├── import-csv.js           import massivo da CSV
@@ -370,5 +377,5 @@ Nessuna dipendenza npm: gli script usano solo la libreria standard di Node.
 - **Slug maiuscoli/minuscoli**: le pagine generate sono case-sensitive, ma il
   fallback in `404.html` recupera anche chi digita `/Instagram` invece di
   `/instagram`.
-- **La libreria QR arriva da un CDN esterno.** È l'unica dipendenza runtime di
-  terze parti dell'intero sito, e riguarda solo la pagina `/qr`.
+- **Nessuna dipendenza runtime di terze parti.** Tutto ciò che il browser
+  scarica arriva da `shrtn.link`, libreria QR inclusa.
